@@ -1,0 +1,142 @@
+import type { CollectivePost, ProductCategory } from '../types';
+
+export const COLLECTIVE_POSTS: CollectivePost[] = [
+  {
+    recipe: {
+      id: 'r-001',
+      name: 'Midnight Velvet',
+      category: 'face-serum' as ProductCategory,
+      vessel: {
+        id: 'v-glass-sm',
+        name: 'Apothecary Vial',
+        material: 'glass',
+        size: 'small',
+        capacityMl: 30,
+        ecoScore: 9,
+        incompatibleIngredients: [],
+        imageUrl: '/vessels/glass-small.png',
+        description: 'A handblown amber glass vial.',
+        priceUsd: 4.5,
+      },
+      ingredients: [],
+      aiAnalysis: {
+        safetyScore: 95,
+        efficacyRating: 88,
+        warnings: [],
+        suggestions: ['Add a drop of Rose Otto for enhanced anti-aging synergy.'],
+        poeticDescription:
+          'A serum woven from moonlit gardens — hyaluronic threads cradle retinol stars in a constellation of renewal.',
+      },
+      createdAt: new Date('2026-03-15'),
+      creatorName: 'Elara Moss',
+      creatorAvatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Elara',
+    },
+    likes: 234,
+    testimonial:
+      'This serum transformed my nighttime routine. My skin has never felt so alive in the morning.',
+    featured: true,
+  },
+  {
+    recipe: {
+      id: 'r-002',
+      name: 'Cedar & Sage Beard Tonic',
+      category: 'beard-oil' as ProductCategory,
+      vessel: {
+        id: 'v-glass-sm',
+        name: 'Apothecary Vial',
+        material: 'glass',
+        size: 'small',
+        capacityMl: 30,
+        ecoScore: 9,
+        incompatibleIngredients: [],
+        imageUrl: '/vessels/glass-small.png',
+        description: 'A handblown amber glass vial.',
+        priceUsd: 4.5,
+      },
+      ingredients: [],
+      aiAnalysis: {
+        safetyScore: 98,
+        efficacyRating: 91,
+        warnings: [],
+        suggestions: [],
+        poeticDescription:
+          'A forest distilled — jojoba rivers run beneath cedar canopies, carrying the quiet strength of sandalwood.',
+      },
+      createdAt: new Date('2026-04-02'),
+      creatorName: 'Rowan Blackthorn',
+      creatorAvatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Rowan',
+    },
+    likes: 187,
+    testimonial:
+      'The scent is incredible — woodsy without being overpowering. My beard has never been softer.',
+    featured: true,
+  },
+  {
+    recipe: {
+      id: 'r-003',
+      name: 'Lavender Cloud Lotion',
+      category: 'lotion' as ProductCategory,
+      vessel: {
+        id: 'v-ceramic-md',
+        name: 'Artisan Crock',
+        material: 'ceramic',
+        size: 'medium',
+        capacityMl: 150,
+        ecoScore: 8,
+        incompatibleIngredients: [],
+        imageUrl: '/vessels/ceramic-medium.png',
+        description: 'A stoneware crock with a cork seal.',
+        priceUsd: 13.0,
+      },
+      ingredients: [],
+      aiAnalysis: {
+        safetyScore: 97,
+        efficacyRating: 85,
+        warnings: [],
+        suggestions: [],
+        poeticDescription:
+          'Whipped from clouds and pressed lavender — this lotion dissolves into skin like morning mist over a Provençal field.',
+      },
+      createdAt: new Date('2026-04-10'),
+      creatorName: 'Sage Willowmere',
+      creatorAvatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Sage',
+    },
+    likes: 312,
+    testimonial:
+      'I keep this on my nightstand. The scent alone is worth it — but the hydration is unreal.',
+    featured: false,
+  },
+  {
+    recipe: {
+      id: 'r-004',
+      name: 'Peppermint Surge Shampoo',
+      category: 'shampoo' as ProductCategory,
+      vessel: {
+        id: 'v-alum-md',
+        name: 'Nomad Bottle',
+        material: 'aluminum',
+        size: 'medium',
+        capacityMl: 150,
+        ecoScore: 7,
+        incompatibleIngredients: ['i-vitamin-c', 'i-retinol'],
+        imageUrl: '/vessels/aluminum-medium.png',
+        description: 'A sleek aluminum pump bottle.',
+        priceUsd: 6.0,
+      },
+      ingredients: [],
+      aiAnalysis: {
+        safetyScore: 92,
+        efficacyRating: 78,
+        warnings: ['Peppermint oil may tingle — patch test first.'],
+        suggestions: [],
+        poeticDescription:
+          'A waterfall of cool fire — peppermint lightning strikes coconut clouds, leaving your scalp electric and alive.',
+      },
+      createdAt: new Date('2026-04-18'),
+      creatorName: 'Jasper Meridian',
+      creatorAvatar: 'https://api.dicebear.com/9.x/lorelei/svg?seed=Jasper',
+    },
+    likes: 156,
+    featured: false,
+  },
+];

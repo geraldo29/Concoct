@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/* ─── Concoct Design Tokens ─── */
+@theme {
+  --color-bone: #f5f0eb;
+  --color-bone-light: #faf8f5;
+  --color-stone: #78716c;
+  --color-stone-light: #a8a29e;
+  --color-stone-dark: #57534e;
+  --color-charcoal: #1c1917;
+  --color-charcoal-light: #292524;
+  --color-sage: #6b7c5e;
+  --color-sage-light: #8a9e7a;
+  --color-sage-dark: #4d5c42;
+  --color-amber: #b45309;
+  --color-amber-light: #d97706;
+  --color-cream: #fffbf5;
+  --color-danger: #dc2626;
+  --color-danger-light: #fef2f2;
+
+  --font-heading: "Cormorant Garamond", "Georgia", serif;
+  --font-body: "Inter", system-ui, sans-serif;
+}
+
+/* ─── Base Styles ─── */
+@layer base {
+  body {
+    @apply bg-bone font-body text-charcoal antialiased;
+    margin: 0;
+  }
+
+  h1, h2, h3, h4 {
+    @apply font-heading;
+  }
+
+  #root {
+    min-height: 100svh;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* ─── Utility Classes ─── */
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, var(--color-sage) 0%, var(--color-amber) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glass-panel {
+    background: rgba(255, 251, 245, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(120, 113, 108, 0.15);
+  }
+
+  .eco-glow {
+    box-shadow: 0 0 20px rgba(107, 124, 94, 0.2);
+  }
+}
