@@ -240,25 +240,36 @@ export function isIngredientForbidden(
 }
 
 /**
- * The smart suggestion engine — picks the next best ingredient given:
+ * The smart suggestion engine — picks the next best action given:
  *   - chosen category
  *   - current ingredients
  *
  * Returns a hint suitable for rendering in the AI suggestion card.
+ * `severity` lets the UI render warnings in a critical tone vs neutral suggestions.
  */
-export function getSmartSuggestion(
-  category: ProductCategory | null,
-  ingredients: Ingredient[],
-): {
+export interface SmartSuggestion {
   basedOn?: string;
   recommendation: string;
   suggestId?: string;
-} {
+  /** 'critical' = something is wrong | 'caution' = soft issue | 'info' = forward suggestion */
+  severity: 'critical' | 'caution' | 'info';
+  /** Title shown above the message when severity is critical/caution */
+  title?: string;
+  /** Optional remediation text — e.g. "Remove Shea Butter" */
+  actionLabel?: string;
+  actionRemoveId?: string;
+}
+
+export function getSmartSuggestion(
+  category: ProductCategory | null,
+  ingredients: Ingredient[],
+): SmartSuggestion {
   const has = (id: string) => ingredients.some((i) => i.id === id);
 
   // No category yet
   if (!category) {
     return {
+      severity: 'info',
       recommendation:
         'Pick a product category to unlock formulation guidance tailored to your goal.',
     };
@@ -266,16 +277,46 @@ export function getSmartSuggestion(
 
   const rules = CATEGORY_RULES[category];
 
-  // No ingredients — give the starter hint with the first base from a good combo
+  // ─── 1. CRITICAL: surface universal conflicts (Vit C + Retinol, etc.) ───
+  const conflicts = getActiveConflicts(ingredients);
+  if (conflicts.length > 0) {
+    const c = conflicts[0];
+    // Suggest removing the second ingredient in the conflict pair
+    const removeId = c.ids[1];
+    const removeIng = ingredients.find((i) => i.id === removeId);
+    return {
+      severity: 'critical',
+      title: c.title,
+      recommendation: c.body + (c.suggestion ? ` ${c.suggestion}` : ''),
+      actionLabel: removeIng ? `Remove ${removeIng.name}` : undefined,
+      actionRemoveId: removeIng ? removeId : undefined,
+    };
+  }
+
+  // ─── 2. CAUTION: surface category-forbidden ingredients ───
+  const categoryWarnings = getCategoryWarnings(category, ingredients);
+  if (categoryWarnings.length > 0) {
+    const w = categoryWarnings[0];
+    return {
+      severity: w.warning.severity === 'high' ? 'critical' : 'caution',
+      title: `${w.ingredient.name} doesn't suit ${humanCategory(category)}`,
+      recommendation: w.warning.reason,
+      actionLabel: `Remove ${w.ingredient.name}`,
+      actionRemoveId: w.ingredient.id,
+    };
+  }
+
+  // ─── 3. INFO: starter hint when no ingredients yet ───
   if (ingredients.length === 0) {
     const firstBaseId = rules.goodBaseCombos[0]?.[0];
     return {
+      severity: 'info',
       recommendation: rules.starterHint,
       suggestId: firstBaseId,
     };
   }
 
-  // 1. Look for an unfinished good base combo and complete it
+  // ─── 4. INFO: complete an unfinished good base combo ───
   for (const combo of rules.goodBaseCombos) {
     const present = combo.filter(has);
     const missing = combo.filter((id) => !has(id));
@@ -283,6 +324,7 @@ export function getSmartSuggestion(
       const partner = missing[0];
       const presentName = ingredients.find((i) => i.id === present[0])?.name ?? 'your base';
       return {
+        severity: 'info',
         basedOn: presentName,
         recommendation: `complete the pairing with the partner from this combo for a balanced ${humanCategory(category)}.`,
         suggestId: partner,
@@ -290,13 +332,14 @@ export function getSmartSuggestion(
     }
   }
 
-  // 2. If no actives yet and the category recommends some, suggest the top active
+  // ─── 5. INFO: suggest the top recommended active ───
   const hasAnyActive = ingredients.some((i) => i.type === 'active');
   if (!hasAnyActive && rules.recommendedActives.length > 0) {
     const next = rules.recommendedActives.find((a) => !has(a.id));
     if (next) {
       const lastBase = ingredients.find((i) => i.type === 'base');
       return {
+        severity: 'info',
         basedOn: lastBase?.name,
         recommendation: `add it for ${next.reason}.`,
         suggestId: next.id,
@@ -304,12 +347,13 @@ export function getSmartSuggestion(
     }
   }
 
-  // 3. If there are actives but no scent, suggest a scent
+  // ─── 6. INFO: finish with a scent ───
   const hasScent = ingredients.some((i) => i.type === 'scent');
   if (!hasScent && rules.recommendedScents.length > 0) {
     const scent = rules.recommendedScents.find((s) => !has(s.id));
     if (scent) {
       return {
+        severity: 'info',
         basedOn: ingredients[ingredients.length - 1].name,
         recommendation: `finish with this scent — ${scent.reason}.`,
         suggestId: scent.id,
@@ -317,13 +361,14 @@ export function getSmartSuggestion(
     }
   }
 
-  // 4. Suggest a second active if it's a serum (which benefits from up to 2-3 actives)
+  // ─── 7. INFO: pair a second active in serums ───
   if (category === 'face-serum' && hasAnyActive) {
     const next = rules.recommendedActives.find(
-      (a) => !has(a.id) && a.id !== 'i-retinol', // never auto-suggest retinol on top of others
+      (a) => !has(a.id) && a.id !== 'i-retinol',
     );
     if (next && ingredients.filter((i) => i.type === 'active').length < 2) {
       return {
+        severity: 'info',
         basedOn: ingredients.find((i) => i.type === 'active')?.name,
         recommendation: `pair with this for ${next.reason}.`,
         suggestId: next.id,
@@ -331,8 +376,9 @@ export function getSmartSuggestion(
     }
   }
 
-  // 5. We're done — formulation looks balanced
+  // ─── 8. Done ───
   return {
+    severity: 'info',
     basedOn: ingredients[ingredients.length - 1].name,
     recommendation: `your ${humanCategory(category)} is well-balanced. Ready to synthesize.`,
   };

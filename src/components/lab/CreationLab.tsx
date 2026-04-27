@@ -221,7 +221,11 @@ export function CreationLab({ onSignInClick }: { onSignInClick: () => void }) {
                         !isSelected &&
                         !isVesselCompatible(state.vessel, [...state.ingredients, ing]);
                       const forbidden = !isSelected ? isIngredientForbidden(state.category, ing) : { forbidden: false };
-                      const wouldBreak = wouldBreakVessel || forbidden.forbidden;
+
+                      // Vessel chemistry incompatibility = HARD block (safety)
+                      // Category guideline violation = SOFT block (allow override)
+                      const hardDisabled = wouldBreakVessel;
+                      const softWarn = forbidden.forbidden;
 
                       return (
                         <motion.div
@@ -230,13 +234,14 @@ export function CreationLab({ onSignInClick }: { onSignInClick: () => void }) {
                           initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: idx * 0.02, duration: 0.2 }}
-                          title={forbidden.forbidden ? forbidden.reason : undefined}
+                          title={softWarn ? `⚠️ ${forbidden.reason}` : undefined}
+                          className={softWarn ? 'opacity-70' : undefined}
                         >
                           <IngredientRow
                             ingredient={ing}
                             index={idx}
                             selected={isSelected}
-                            disabled={wouldBreak}
+                            disabled={hardDisabled}
                             onToggle={() =>
                               isSelected ? r.removeIngredient(ing.id) : r.addIngredient(ing)
                             }
@@ -353,7 +358,15 @@ export function CreationLab({ onSignInClick }: { onSignInClick: () => void }) {
           <AISuggestionCard
             basedOn={liveSuggestion.basedOn}
             recommendation={liveSuggestion.recommendation}
+            severity={liveSuggestion.severity}
+            title={liveSuggestion.title}
             onAccept={liveSuggestion.suggestId ? handleAcceptSuggestion : undefined}
+            onRemove={
+              liveSuggestion.actionRemoveId
+                ? () => r.removeIngredient(liveSuggestion.actionRemoveId!)
+                : undefined
+            }
+            removeLabel={liveSuggestion.actionLabel}
           />
         </aside>
       </div>
