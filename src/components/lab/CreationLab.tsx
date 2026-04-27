@@ -367,6 +367,8 @@ export function CreationLab({ onSignInClick }: { onSignInClick: () => void }) {
                 : undefined
             }
             removeLabel={liveSuggestion.actionLabel}
+            removeActions={liveSuggestion.removeActions}
+            onRemoveById={(id) => r.removeIngredient(id)}
           />
         </aside>
       </div>

@@ -15,6 +15,9 @@ interface AISuggestionCardProps {
   /** Click "Remove X" — only shown for critical/caution */
   onRemove?: () => void;
   removeLabel?: string;
+  /** Multiple remove buttons when many ingredients need removal */
+  removeActions?: Array<{ id: string; label: string }>;
+  onRemoveById?: (id: string) => void;
   loading?: boolean;
 }
 
@@ -52,9 +55,14 @@ export function AISuggestionCard({
   onAccept,
   onRemove,
   removeLabel,
+  removeActions,
+  onRemoveById,
   loading,
 }: AISuggestionCardProps) {
   const s = STYLES[severity];
+
+  // Prefer the multi-action list if provided
+  const showMulti = removeActions && removeActions.length > 1 && onRemoveById;
 
   return (
     <motion.section
@@ -91,18 +99,30 @@ export function AISuggestionCard({
           )}
         </p>
 
-        {!loading && (onAccept || onRemove) && (
+        {!loading && (onAccept || onRemove || showMulti) && (
           <div className="mt-3 flex flex-wrap gap-2">
-            {onRemove && removeLabel && (
-              <Button
-                variant={severity === 'critical' ? 'danger' : 'secondary'}
-                size="sm"
-                onClick={onRemove}
-                className="!text-xs"
-              >
-                <MinusCircle size={13} /> {removeLabel}
-              </Button>
-            )}
+            {showMulti
+              ? removeActions!.map((a) => (
+                  <Button
+                    key={a.id}
+                    variant={severity === 'critical' ? 'danger' : 'secondary'}
+                    size="sm"
+                    onClick={() => onRemoveById!(a.id)}
+                    className="!text-xs"
+                  >
+                    <MinusCircle size={13} /> {a.label}
+                  </Button>
+                ))
+              : onRemove && removeLabel && (
+                  <Button
+                    variant={severity === 'critical' ? 'danger' : 'secondary'}
+                    size="sm"
+                    onClick={onRemove}
+                    className="!text-xs"
+                  >
+                    <MinusCircle size={13} /> {removeLabel}
+                  </Button>
+                )}
             {onAccept && (
               <Button
                 variant="ghost"
