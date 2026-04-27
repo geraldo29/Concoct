@@ -14,6 +14,12 @@ import {
   isVesselCompatible,
   getIncompatibilityReasons,
 } from '../../services/compatibilityEngine';
+import {
+  getActiveConflicts,
+  getCategoryWarnings,
+  getSmartSuggestion,
+  isIngredientForbidden,
+} from '../../services/formulationRules';
 import { analyzeFormulation } from '../../services/geminiService';
 import { estimateCo2Impact } from '../../utils/formulation';
 import { cn, humanize } from '../../utils/helpers';
@@ -61,51 +67,31 @@ export function CreationLab({ onSignInClick }: { onSignInClick: () => void }) {
     return getIncompatibilityReasons(state.vessel, state.ingredients);
   }, [state.vessel, state.ingredients]);
 
-  // High-severity check: vitamin C + retinol together
-  const conflictingActives = useMemo(() => {
-    const ids = state.ingredients.map((i) => i.id);
-    if (ids.includes('i-vitamin-c') && ids.includes('i-retinol')) {
-      return {
-        title: 'High Severity Interaction',
-        body: 'Vitamin C and Retinol should not be mixed in the same serum. They operate at different pH levels and can cause severe irritation.',
-        suggestion: 'Apply Vitamin C in AM, Retinol in PM.',
-      };
-    }
-    return null;
-  }, [state.ingredients]);
+  // High-severity ingredient interactions (Vit C + Retinol, etc.)
+  const ingredientConflicts = useMemo(
+    () => getActiveConflicts(state.ingredients),
+    [state.ingredients],
+  );
 
-  // AI-style suggestion (deterministic, runs locally)
-  const liveSuggestion = useMemo(() => {
-    if (state.ingredients.length === 0) {
-      return {
-        recommendation:
-          'Begin by selecting a base oil. Pure Squalane and Jojoba make excellent foundations.',
-      };
-    }
-    const lastIng = state.ingredients[state.ingredients.length - 1];
-    if (lastIng.id === 'i-retinol') {
-      return {
-        basedOn: 'Retinol',
-        recommendation: 'we recommend adding Niacinamide to soothe skin and reinforce the barrier.',
-      };
-    }
-    if (lastIng.type === 'active') {
-      return {
-        basedOn: lastIng.name,
-        recommendation: 'pair with Hyaluronic Acid to maximize hydration and reduce irritation.',
-      };
-    }
-    if (state.ingredients.every((i) => i.type === 'base')) {
-      return {
-        recommendation:
-          'Your base is balanced — consider adding an active like Niacinamide or Vitamin C for targeted benefit.',
-      };
-    }
-    return {
-      basedOn: lastIng.name,
-      recommendation: 'a touch of Lavender or Rose Otto would round out the aromatic profile.',
-    };
-  }, [state.ingredients]);
+  // Per-category forbidden ingredients (e.g., Retinol in shampoo)
+  const categoryWarnings = useMemo(
+    () => (state.category ? getCategoryWarnings(state.category, state.ingredients) : []),
+    [state.category, state.ingredients],
+  );
+
+  // AI-style suggestion driven by category-aware rules engine
+  const liveSuggestion = useMemo(
+    () => getSmartSuggestion(state.category, state.ingredients),
+    [state.category, state.ingredients],
+  );
+
+  function handleAcceptSuggestion() {
+    if (!liveSuggestion.suggestId) return;
+    const ing = INGREDIENTS.find((i) => i.id === liveSuggestion.suggestId);
+    if (!ing) return;
+    if (state.vessel && !isVesselCompatible(state.vessel, [...state.ingredients, ing])) return;
+    r.addIngredient(ing);
+  }
 
   // ─── Action handlers ──────────────────────────────────────
   async function handleReview() {
@@ -178,60 +164,133 @@ export function CreationLab({ onSignInClick }: { onSignInClick: () => void }) {
         {/* ═══════════ CENTER WORKSPACE ═══════════ */}
         <main className="min-w-0">
           <header className="mb-6">
+            <p className="text-xs uppercase tracking-[0.3em] text-sage font-medium mb-2">
+              {!state.category
+                ? 'Step 1 of 3'
+                : !state.vessel
+                ? 'Step 2 of 3'
+                : state.ingredients.length === 0
+                ? 'Step 3 of 3'
+                : 'Ready to review'}
+            </p>
             <h1 className="font-heading text-4xl md:text-5xl text-charcoal leading-tight">
-              Create Your <em className="text-gradient not-italic">Essence</em>
+              {!state.category && (
+                <>Choose a <em className="text-gradient not-italic">category</em></>
+              )}
+              {state.category && !state.vessel && (
+                <>Pick your <em className="text-gradient not-italic">vessel</em></>
+              )}
+              {state.category && state.vessel && (
+                <>Create Your <em className="text-gradient not-italic">Essence</em></>
+              )}
             </h1>
             <p className="mt-2 text-stone leading-relaxed max-w-xl">
-              Select active ingredients to tailor your formulation to your skin's
-              unique climate and biology.
+              {!state.category && '← Begin by selecting a product category from the left sidebar.'}
+              {state.category && !state.vessel && '← Now choose a sustainable vessel from the left sidebar.'}
+              {state.category && state.vessel &&
+                'Select active ingredients to tailor your formulation to your skin\'s unique climate and biology.'}
             </p>
           </header>
 
-          {/* Ingredient list */}
-          <div className="space-y-2.5">
-            <AnimatePresence initial={false}>
-              {INGREDIENTS.slice(0, 8).map((ing, idx) => {
-                const isSelected = state.ingredients.some((i) => i.id === ing.id);
-                const wouldBreak =
-                  state.vessel !== null &&
-                  !isSelected &&
-                  !isVesselCompatible(state.vessel, [...state.ingredients, ing]);
+          {/* Ingredient list — grouped by type */}
+          {(['base', 'active', 'scent'] as const).map((groupType) => {
+            const items = INGREDIENTS.filter((i) => i.type === groupType);
+            const groupLabel =
+              groupType === 'base' ? 'Bases' : groupType === 'active' ? 'Actives' : 'Scents';
+            const groupHint =
+              groupType === 'base'
+                ? 'The carrier — what holds your formulation'
+                : groupType === 'active'
+                ? 'Targeted ingredients with a specific function'
+                : 'Finishing aromatic notes';
 
-                return (
-                  <motion.div
-                    key={ing.id}
-                    layout
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.03, duration: 0.25 }}
-                  >
-                    <IngredientRow
-                      ingredient={ing}
-                      index={idx}
-                      selected={isSelected}
-                      disabled={wouldBreak}
-                      onToggle={() =>
-                        isSelected ? r.removeIngredient(ing.id) : r.addIngredient(ing)
-                      }
-                    />
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </div>
+            return (
+              <section key={groupType} className="mb-6">
+                <header className="mb-3 flex items-baseline justify-between">
+                  <h3 className="font-heading text-xl text-charcoal">{groupLabel}</h3>
+                  <span className="text-[10px] uppercase tracking-[0.2em] text-stone-light">
+                    {groupHint}
+                  </span>
+                </header>
+                <div className="space-y-2.5">
+                  <AnimatePresence initial={false}>
+                    {items.map((ing, idx) => {
+                      const isSelected = state.ingredients.some((i) => i.id === ing.id);
+                      const wouldBreakVessel =
+                        state.vessel !== null &&
+                        !isSelected &&
+                        !isVesselCompatible(state.vessel, [...state.ingredients, ing]);
+                      const forbidden = !isSelected ? isIngredientForbidden(state.category, ing) : { forbidden: false };
+                      const wouldBreak = wouldBreakVessel || forbidden.forbidden;
 
-          {/* Inline severity warning */}
-          {conflictingActives && (
-            <motion.div
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-5"
-            >
-              <WarningCallout severity="high" {...conflictingActives} />
-            </motion.div>
+                      return (
+                        <motion.div
+                          key={ing.id}
+                          layout
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.02, duration: 0.2 }}
+                          title={forbidden.forbidden ? forbidden.reason : undefined}
+                        >
+                          <IngredientRow
+                            ingredient={ing}
+                            index={idx}
+                            selected={isSelected}
+                            disabled={wouldBreak}
+                            onToggle={() =>
+                              isSelected ? r.removeIngredient(ing.id) : r.addIngredient(ing)
+                            }
+                          />
+                        </motion.div>
+                      );
+                    })}
+                  </AnimatePresence>
+                </div>
+              </section>
+            );
+          })}
+
+          {/* All ingredient conflicts (Vit C + Retinol, etc.) */}
+          {ingredientConflicts.length > 0 && (
+            <div className="mt-5 space-y-3">
+              {ingredientConflicts.map((c, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <WarningCallout
+                    severity={c.severity}
+                    title={c.title}
+                    body={c.body}
+                    suggestion={c.suggestion}
+                  />
+                </motion.div>
+              ))}
+            </div>
           )}
 
-          {interactionWarnings.length > 0 && !conflictingActives && (
+          {/* Category-specific warnings (Retinol in shampoo, HA in body butter, etc.) */}
+          {categoryWarnings.length > 0 && (
+            <div className="mt-5 space-y-3">
+              {categoryWarnings.map(({ ingredient, warning }) => (
+                <motion.div
+                  key={ingredient.id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <WarningCallout
+                    severity={warning.severity}
+                    title={`${ingredient.name} not recommended`}
+                    body={warning.reason}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {/* Vessel compatibility (chemical reaction with material) */}
+          {interactionWarnings.length > 0 && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -254,15 +313,25 @@ export function CreationLab({ onSignInClick }: { onSignInClick: () => void }) {
               </span>
             </div>
 
-            <Button
-              size="lg"
-              onClick={handleReview}
-              disabled={
-                !state.category || !state.vessel || state.ingredients.length === 0
-              }
-            >
-              Review Formulation <ArrowRight size={16} />
-            </Button>
+            <div className="flex flex-col items-end gap-1.5">
+              <Button
+                size="lg"
+                onClick={handleReview}
+                disabled={
+                  !state.category || !state.vessel || state.ingredients.length === 0
+                }
+              >
+                Review Formulation <ArrowRight size={16} />
+              </Button>
+              {(!state.category || !state.vessel || state.ingredients.length === 0) && (
+                <p className="text-xs italic text-stone-light">
+                  {!state.category && 'Select a category to continue'}
+                  {state.category && !state.vessel && 'Select a vessel to continue'}
+                  {state.category && state.vessel && state.ingredients.length === 0 &&
+                    'Add at least one ingredient'}
+                </p>
+              )}
+            </div>
           </footer>
         </main>
 
@@ -284,6 +353,7 @@ export function CreationLab({ onSignInClick }: { onSignInClick: () => void }) {
           <AISuggestionCard
             basedOn={liveSuggestion.basedOn}
             recommendation={liveSuggestion.recommendation}
+            onAccept={liveSuggestion.suggestId ? handleAcceptSuggestion : undefined}
           />
         </aside>
       </div>
@@ -301,9 +371,12 @@ interface CategoryListProps {
 function CategoryList({ selected, onSelect }: CategoryListProps) {
   return (
     <section>
-      <h4 className="text-xs uppercase tracking-[0.25em] text-stone-light font-medium mb-3">
-        01. Category
-      </h4>
+      <SectionHeader
+        step="01"
+        label="Category"
+        complete={!!selected}
+        active={!selected}
+      />
       <ul className="space-y-1">
         {CATEGORIES.map((c) => {
           const Icon = (Icons[c.icon as keyof typeof Icons] as LucideIcon) ?? Icons.Leaf;
@@ -358,9 +431,13 @@ function VesselSelector({
 
   return (
     <section>
-      <h4 className="text-xs uppercase tracking-[0.25em] text-stone-light font-medium mb-3">
-        02. Vessel
-      </h4>
+      <SectionHeader
+        step="02"
+        label="Vessel"
+        complete={!!selected}
+        active={!selected}
+        disabled={display.length === 0}
+      />
       <div className="grid grid-cols-2 gap-2">
         {display.map((v) => {
           const compatible = isVesselCompatible(v, ingredients);
@@ -391,5 +468,40 @@ function VesselSelector({
         })}
       </div>
     </section>
+  );
+}
+
+// ─── Shared section header for left-sidebar steps ───
+interface SectionHeaderProps {
+  step: string;
+  label: string;
+  complete: boolean;
+  active: boolean;
+  disabled?: boolean;
+}
+
+function SectionHeader({ step, label, complete, active, disabled }: SectionHeaderProps) {
+  return (
+    <div className="mb-3 flex items-center gap-2">
+      <span
+        className={cn(
+          'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-medium tabular-nums',
+          complete && 'bg-sage text-bone',
+          active && !complete && 'bg-charcoal text-bone ring-2 ring-charcoal/15 ring-offset-2 ring-offset-bone',
+          !active && !complete && 'bg-stone-light/30 text-stone',
+          disabled && 'bg-stone-light/15 text-stone-light',
+        )}
+      >
+        {complete ? '✓' : step}
+      </span>
+      <h4
+        className={cn(
+          'text-xs uppercase tracking-[0.25em] font-medium',
+          active ? 'text-charcoal' : complete ? 'text-sage-dark' : 'text-stone-light',
+        )}
+      >
+        {label}
+      </h4>
+    </div>
   );
 }
