@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { AlertTriangle, Beaker, Lightbulb, Loader2, Sparkles } from 'lucide-react';
+import { AlertTriangle, Beaker, Bookmark, Check, Lightbulb, Loader2, Sparkles } from 'lucide-react';
 import type { AIAnalysisResult, Ingredient, ProductCategory, Vessel } from '../../types';
 import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
@@ -8,6 +8,8 @@ import { Button } from '../ui/Button';
 import { VesselPreview } from '../ui/VesselPreview';
 import { humanize } from '../../utils/helpers';
 import { analyzeFormulation } from '../../services/geminiService';
+import { useAuth } from '../../hooks/useAuth';
+import { saveRecipe } from '../../services/recipesService';
 
 interface StageSynthesisProps {
   category: ProductCategory | null;
@@ -17,6 +19,7 @@ interface StageSynthesisProps {
   isAnalyzing: boolean;
   onAnalyze: (r: AIAnalysisResult) => void;
   onSetAnalyzing: (b: boolean) => void;
+  onSignInClick?: () => void;
   onReset: () => void;
 }
 
@@ -28,8 +31,13 @@ export function StageSynthesis({
   isAnalyzing,
   onAnalyze,
   onSetAnalyzing,
+  onSignInClick,
   onReset,
 }: StageSynthesisProps) {
+  const { user, configured } = useAuth();
+  const [recipeName, setRecipeName] = useState('');
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveError, setSaveError] = useState<string | null>(null);
   // Auto-trigger analysis on mount if not yet done
   useEffect(() => {
     if (!result && !isAnalyzing && category && vessel && ingredients.length > 0) {
@@ -152,6 +160,71 @@ export function StageSynthesis({
                   />
                   <Row label="Eco Score" value={`${vessel.ecoScore}/10`} />
                 </dl>
+              </Card>
+
+              {/* Save formulation */}
+              <Card className="bg-cream">
+                <h4 className="flex items-center gap-2 font-heading text-lg text-charcoal">
+                  <Bookmark size={16} className="text-sage" /> Save to Archive
+                </h4>
+
+                {!configured ? (
+                  <p className="mt-2 text-sm text-stone italic">
+                    Firebase isn't configured yet — saved formulations will be enabled once env vars are set.
+                  </p>
+                ) : !user ? (
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-stone leading-snug">
+                      Sign in to save this formulation to your private archive.
+                    </p>
+                    <Button size="sm" onClick={onSignInClick}>
+                      Sign in
+                    </Button>
+                  </div>
+                ) : saveState === 'saved' ? (
+                  <p className="mt-3 flex items-center gap-2 text-sm text-sage-dark">
+                    <Check size={14} /> Saved to your archive.
+                  </p>
+                ) : (
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                    <input
+                      type="text"
+                      value={recipeName}
+                      onChange={(e) => setRecipeName(e.target.value)}
+                      placeholder="Name your concoction…"
+                      className="flex-1 min-h-[44px] rounded-full border border-stone-light/40 bg-bone-light px-4 py-2 text-sm text-charcoal placeholder:text-stone-light focus:outline-none focus:ring-2 focus:ring-sage/40"
+                      maxLength={60}
+                    />
+                    <Button
+                      size="sm"
+                      disabled={!recipeName.trim() || saveState === 'saving'}
+                      onClick={async () => {
+                        if (!user || !recipeName.trim()) return;
+                        setSaveState('saving');
+                        setSaveError(null);
+                        try {
+                          await saveRecipe(user.uid, {
+                            name: recipeName.trim(),
+                            category,
+                            vessel,
+                            ingredients,
+                            aiAnalysis: result ?? undefined,
+                          });
+                          setSaveState('saved');
+                        } catch (err) {
+                          setSaveError(err instanceof Error ? err.message : 'Save failed');
+                          setSaveState('error');
+                        }
+                      }}
+                    >
+                      {saveState === 'saving' ? <Loader2 size={14} className="animate-spin" /> : <Bookmark size={14} />}
+                      Save
+                    </Button>
+                  </div>
+                )}
+                {saveError && (
+                  <p className="mt-2 text-xs text-danger">{saveError}</p>
+                )}
               </Card>
 
               <div className="flex justify-end">

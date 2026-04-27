@@ -1,0 +1,11 @@
+{
+  "name": "concoct-recipes-lambda",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.150",
+    "@aws-sdk/client-dynamodb": "^3.730.0",
+    "@aws-sdk/lib-dynamodb": "^3.730.0"
+  }
+}

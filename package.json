@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/genai": "^1.50.1",
     "@tailwindcss/vite": "^4.2.4",
+    "aws-amplify": "^6.16.4",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.11.0",
     "react": "^19.2.5",

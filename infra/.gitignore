@@ -1,0 +1,14 @@
+# CDK output
+cdk.out/
+node_modules/
+*.js
+*.d.ts
+!jest.config.js
+
+# Lambda build artifacts
+lambda/**/*.js
+lambda/**/*.d.ts
+lambda/**/dist/
+
+# Logs
+*.log
